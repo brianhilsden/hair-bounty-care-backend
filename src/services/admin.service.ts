@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/apiError';
+import { notificationsService } from './notifications.service';
 import {
   CreateProductInput,
   UpdateProductInput,
@@ -133,7 +134,19 @@ export class AdminService {
   async updateOrderStatus(id: string, status: string) {
     const order = await prisma.order.findUnique({ where: { id } });
     if (!order) throw ApiError.notFound('Order not found');
-    return prisma.order.update({ where: { id }, data: { status } });
+    const updated = await prisma.order.update({ where: { id }, data: { status } });
+
+    if (status === 'shipped') {
+      await notificationsService.sendToUser({
+        userId: order.userId,
+        title: '🚚 Your Order is on its Way!',
+        body: `Your order is out for delivery. Get ready!`,
+        type: 'order_shipped',
+        data: { orderId: id },
+      });
+    }
+
+    return updated;
   }
 
   // ─── Products ────────────────────────────────────────────────────────────

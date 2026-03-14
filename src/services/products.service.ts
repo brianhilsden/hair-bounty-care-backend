@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/apiError';
+import { notificationsService } from './notifications.service';
 
 export interface ProductFilters {
   categoryId?: string;
@@ -116,6 +117,14 @@ export class ProductsService {
       },
     });
 
+    await notificationsService.sendToUser({
+      userId,
+      title: '📦 Order Confirmed!',
+      body: `Your order has been confirmed. We'll notify you when it ships.`,
+      type: 'order_confirmed',
+      data: { orderId: order.id },
+    });
+
     return order;
   }
 
@@ -138,5 +147,27 @@ export class ProductsService {
     });
     if (!order) throw ApiError.notFound('Order not found');
     return order;
+  }
+
+  async updateOrderStatus(orderId: string, status: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw ApiError.notFound('Order not found');
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: { status },
+    });
+
+    if (status === 'shipped') {
+      await notificationsService.sendToUser({
+        userId: order.userId,
+        title: '🚚 Your Order is on its Way!',
+        body: `Your order is out for delivery. Get ready!`,
+        type: 'order_shipped',
+        data: { orderId },
+      });
+    }
+
+    return updated;
   }
 }

@@ -1,46 +1,24 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { env } from '../config/env';
 
-const createTransporter = () => {
-  if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) {
-    console.warn('⚠️  Email configuration missing. Emails will be logged to console.');
-    return null;
-  }
+const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
-  return nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT || 587,
-    secure: false,
-    auth: {
-      user: env.SMTP_USER,
-      pass: env.SMTP_PASS,
-    },
-  });
-};
-
-const transporter = createTransporter();
+const FROM = env.EMAIL_FROM || 'Hair Bounty Care <onboarding@resend.dev>';
 
 export const sendEmail = async (to: string, subject: string, html: string) => {
-  if (!transporter) {
-    console.log('\n📧 Email (Development Mode):');
+  if (!resend) {
+    console.log('\n📧 Email (Development Mode — set RESEND_API_KEY to send real emails):');
     console.log(`To: ${to}`);
-    console.log(`Subject: ${subject}`);
-    console.log(`Body: ${html}\n`);
+    console.log(`Subject: ${subject}\n`);
     return;
   }
 
-  try {
-    await transporter.sendMail({
-      from: env.EMAIL_FROM || 'Hair Bounty Care <noreply@hairbountycare.com>',
-      to,
-      subject,
-      html,
-    });
-    console.log(`✅ Email sent to ${to}`);
-  } catch (error) {
-    console.error('❌ Email send error:', error);
-    throw error;
+  const { error } = await resend.emails.send({ from: FROM, to, subject, html });
+  if (error) {
+    console.error('❌ Resend error:', error);
+    throw new Error(error.message);
   }
+  console.log(`✅ Email sent to ${to}`);
 };
 
 export const sendVerificationEmail = async (to: string, token: string) => {
@@ -116,7 +94,7 @@ export const sendPasswordResetEmail = async (to: string, token: string) => {
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #666;">${resetUrl}</p>
             <p style="margin-top: 30px; color: #d9534f;"><strong>This link will expire in 1 hour.</strong></p>
-            <p>If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+            <p>If you didn't request a password reset, you can safely ignore this email.</p>
           </div>
           <div class="footer">
             <p>&copy; 2026 Hair Bounty Care. All rights reserved.</p>

@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/apiError';
+import { notificationsService } from './notifications.service';
 import { generateTokens, verifyRefreshToken } from '../utils/jwt';
 import { generateReferralCode, generateToken, sanitizeUser } from '../utils/helpers';
 import {
@@ -86,13 +87,24 @@ export class AuthService {
             referredId: user.id,
           },
         });
+        await notificationsService.sendToUser({
+          userId: referrer.id,
+          title: '🔔 Referral Joined!',
+          body: `${user.firstName} just joined Hair Bounty using your referral code!`,
+          type: 'referral_joined',
+          data: { referredUserId: user.id },
+        });
       }
     }
 
-    // Send verification email
+    // Send verification + welcome emails (non-blocking — don't fail registration if email fails)
     const verificationToken = generateToken();
-    // Store token in a temp table or cache (for simplicity, we'll generate on-demand)
-    await sendVerificationEmail(user.email, verificationToken);
+    sendVerificationEmail(user.email, verificationToken).catch((e) =>
+      console.error('❌ Verification email failed:', e?.message)
+    );
+    sendWelcomeEmail(user.email, user.firstName).catch((e) =>
+      console.error('❌ Welcome email failed:', e?.message)
+    );
 
     // Generate tokens
     const tokens = generateTokens({

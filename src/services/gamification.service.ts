@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/apiError';
+import { notificationsService } from './notifications.service';
 
 export class GamificationService {
   // Badge Management
@@ -96,6 +97,13 @@ export class GamificationService {
       if (earned) {
         await this.awardBadge(userId, badge.id);
         newBadges.push(badge);
+        await notificationsService.sendToUser({
+          userId,
+          title: '🏅 Badge Earned!',
+          body: `You just earned the "${badge.name}" badge. Keep it up!`,
+          type: 'badge_earned',
+          data: { badgeId: badge.id },
+        });
       }
     }
 

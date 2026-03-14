@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/apiError';
+import { notificationsService } from './notifications.service';
 
 export class CommunityService {
   // ─── Groups ────────────────────────────────────────────────
@@ -107,6 +108,29 @@ export class CommunityService {
         },
       },
     });
+
+    // Notify group members (excluding poster)
+    const members = await prisma.communityMember.findMany({
+      where: { groupId, userId: { not: userId } },
+      select: { userId: true },
+    });
+
+    const group = await prisma.communityGroup.findUnique({
+      where: { id: groupId },
+      select: { name: true },
+    });
+
+    await Promise.all(
+      members.map((m) =>
+        notificationsService.sendToUser({
+          userId: m.userId,
+          title: '💬 New Post in Your Group',
+          body: `Someone posted in ${group?.name ?? 'your group'}`,
+          type: 'group_post',
+          data: { groupId, postId: post.id },
+        })
+      )
+    );
 
     return { ...post, isLiked: false };
   }
