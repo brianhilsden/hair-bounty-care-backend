@@ -56,6 +56,9 @@ router.post(
   authController.verifyEmail.bind(authController)
 );
 
+// GET — called by the care site when user clicks the link in the email
+router.get('/verify-email', authController.verifyEmailGet.bind(authController));
+
 // Protected routes
 router.get('/me', authenticate, authController.getMe.bind(authController));
 

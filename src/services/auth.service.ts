@@ -97,8 +97,15 @@ export class AuthService {
       }
     }
 
-    // Send verification + welcome emails (non-blocking — don't fail registration if email fails)
+    // Store email verification token (24h expiry)
     const verificationToken = generateToken();
+    const verificationExpiry = new Date();
+    verificationExpiry.setHours(verificationExpiry.getHours() + 24);
+    await prisma.emailVerificationToken.create({
+      data: { token: verificationToken, userId: user.id, expiresAt: verificationExpiry },
+    });
+
+    // Send verification + welcome emails (non-blocking — don't fail registration if email fails)
     sendVerificationEmail(user.email, verificationToken).catch((e) =>
       console.error('❌ Verification email failed:', e?.message)
     );
@@ -252,44 +259,65 @@ export class AuthService {
       return { message: 'If the email exists, a password reset link has been sent' };
     }
 
-    // Generate reset token
-    const resetToken = generateToken();
+    // Delete any existing reset tokens for this user
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
 
-    // Store token with expiry (you might want a separate table for this)
-    // For simplicity, we'll send it directly
+    // Store reset token (1h expiry)
+    const resetToken = generateToken();
+    const resetExpiry = new Date();
+    resetExpiry.setHours(resetExpiry.getHours() + 1);
+    await prisma.passwordResetToken.create({
+      data: { token: resetToken, userId: user.id, expiresAt: resetExpiry },
+    });
+
     await sendPasswordResetEmail(user.email, resetToken);
 
     return { message: 'If the email exists, a password reset link has been sent' };
   }
 
   async resetPassword(data: ResetPasswordInput) {
-    // In a real implementation, you'd verify the token from a database table
-    // For now, we'll skip that verification
-    // const tokenRecord = await prisma.passwordResetToken.findUnique({ where: { token: data.token } });
+    const tokenRecord = await prisma.passwordResetToken.findUnique({
+      where: { token: data.token },
+    });
 
-    // Hash new password
+    if (!tokenRecord || tokenRecord.expiresAt < new Date()) {
+      throw ApiError.badRequest('Invalid or expired password reset link');
+    }
+
     const hashedPassword = await bcrypt.hash(data.password, 12);
 
-    // Update user password (you'd get userId from token record)
-    // await prisma.user.update({
-    //   where: { id: tokenRecord.userId },
-    //   data: { password: hashedPassword },
-    // });
+    await prisma.user.update({
+      where: { id: tokenRecord.userId },
+      data: { password: hashedPassword },
+    });
 
-    // Delete all refresh tokens for security
-    // await prisma.refreshToken.deleteMany({ where: { userId: tokenRecord.userId } });
+    // Invalidate token and all refresh tokens for security
+    await prisma.passwordResetToken.delete({ where: { token: data.token } });
+    await prisma.refreshToken.deleteMany({ where: { userId: tokenRecord.userId } });
 
     return { message: 'Password reset successful' };
   }
 
   async verifyEmail(token: string) {
-    // In a real implementation, verify token from database
-    // For now, we'll assume token is valid
-    // Mark user as verified
-    // await prisma.user.update({
-    //   where: { id: userId },
-    //   data: { isEmailVerified: true },
-    // });
+    const tokenRecord = await prisma.emailVerificationToken.findUnique({
+      where: { token },
+    });
+
+    if (!tokenRecord) {
+      throw ApiError.badRequest('Invalid verification link');
+    }
+
+    if (tokenRecord.expiresAt < new Date()) {
+      await prisma.emailVerificationToken.delete({ where: { token } });
+      throw ApiError.badRequest('Verification link has expired — please request a new one');
+    }
+
+    await prisma.user.update({
+      where: { id: tokenRecord.userId },
+      data: { isEmailVerified: true },
+    });
+
+    await prisma.emailVerificationToken.delete({ where: { token } });
 
     return { message: 'Email verified successfully' };
   }

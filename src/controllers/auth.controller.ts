@@ -94,6 +94,20 @@ export class AuthController {
     }
   }
 
+  // GET /verify-email?token= — called by the care site after the user clicks the email link
+  async verifyEmailGet(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = req.query.token as string;
+      if (!token) {
+        return ApiResponse.error(res, 'Token is required', 400);
+      }
+      const result = await authService.verifyEmail(token);
+      return ApiResponse.success(res, null, result.message);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getMe(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) {
