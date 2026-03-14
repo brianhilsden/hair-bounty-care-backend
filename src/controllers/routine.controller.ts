@@ -4,6 +4,10 @@ import { ApiError } from '../utils/apiError';
 
 const routineService = new RoutineService();
 
+function param(val: string | string[]): string {
+  return Array.isArray(val) ? val[0] : val;
+}
+
 export class RoutineController {
   async createTemplate(req: Request, res: Response, next: NextFunction) {
     try {
@@ -32,7 +36,7 @@ export class RoutineController {
 
   async getTemplateById(req: Request, res: Response, next: NextFunction) {
     try {
-      const template = await routineService.getTemplateById(req.params.id as string);
+      const template = await routineService.getTemplateById(param(req.params.id));
       res.json({
         success: true,
         data: template,
@@ -44,7 +48,7 @@ export class RoutineController {
 
   async updateTemplate(req: Request, res: Response, next: NextFunction) {
     try {
-      const template = await routineService.updateTemplate(req.params.id as string, req.body);
+      const template = await routineService.updateTemplate(param(req.params.id), req.body);
       res.json({
         success: true,
         message: 'Routine template updated successfully',
@@ -57,7 +61,7 @@ export class RoutineController {
 
   async deleteTemplate(req: Request, res: Response, next: NextFunction) {
     try {
-      await routineService.deleteTemplate(req.params.id as string);
+      await routineService.deleteTemplate(param(req.params.id));
       res.json({
         success: true,
         message: 'Routine template deleted successfully',
@@ -146,6 +150,50 @@ export class RoutineController {
       res.json({
         success: true,
         data: streak,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getUserRoutineTemplates(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw ApiError.unauthorized('User not found');
+      const userId = req.user.userId;
+      const result = await routineService.getUserRoutineTemplates(userId);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async addUserRoutineTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw ApiError.unauthorized('User not found');
+      const userId = req.user.userId;
+      const { templateId } = req.body;
+      const record = await routineService.addUserRoutineTemplate(userId, templateId);
+      res.status(201).json({
+        success: true,
+        message: 'Routine added to your list',
+        data: record,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async removeUserRoutineTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw ApiError.unauthorized('User not found');
+      const userId = req.user.userId;
+      await routineService.removeUserRoutineTemplate(userId, param(req.params.templateId));
+      res.json({
+        success: true,
+        message: 'Routine removed from your list',
       });
     } catch (error) {
       next(error);

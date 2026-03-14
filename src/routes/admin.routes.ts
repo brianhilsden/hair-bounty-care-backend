@@ -18,6 +18,8 @@ import {
   createAdSchema,
   updateAdSchema,
   updateReviewStatusSchema,
+  createRoutineTemplateAdminSchema,
+  updateRoutineTemplateAdminSchema,
 } from '../validations/admin.validation';
 
 const router = Router();
@@ -123,6 +125,21 @@ router.patch('/reviews/:id/status',
   ctrl.updateReviewStatus.bind(ctrl)
 );
 router.delete('/reviews/:id', adminMutationRateLimiter, ctrl.deleteReview.bind(ctrl));
+
+// ─── Routine Templates ────────────────────────────────────────────────────────
+router.get('/routines', ctrl.getRoutineTemplates.bind(ctrl));
+router.post('/routines',
+  adminMutationRateLimiter,
+  validate(createRoutineTemplateAdminSchema),
+  ctrl.createRoutineTemplate.bind(ctrl)
+);
+router.put('/routines/:id',
+  adminMutationRateLimiter,
+  validate(updateRoutineTemplateAdminSchema),
+  ctrl.updateRoutineTemplate.bind(ctrl)
+);
+router.delete('/routines/:id', adminMutationRateLimiter, ctrl.deleteRoutineTemplate.bind(ctrl));
+router.patch('/routines/:id/toggle', adminMutationRateLimiter, ctrl.toggleRoutineActive.bind(ctrl));
 
 // ─── Newsletter & Push ───────────────────────────────────────────────────────
 router.get('/subscribers', ctrl.getSubscribers.bind(ctrl));

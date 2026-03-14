@@ -66,6 +66,7 @@ model User {
   streaks           Streak?
   leaderboardEntry  LeaderboardEntry?
   aiConversations   AiConversation[]
+  userRoutines      UserRoutineTemplate[]
 
   @@index([email])
   @@index([referralCode])
@@ -173,14 +174,35 @@ model HairProfile {
 // ─── DAILY ROUTINE & GAMIFICATION ────────────────────────────
 
 model RoutineTemplate {
-  id          String         @id @default(cuid())
-  name        String         @unique // e.g., "Crown Hydration" (cute name)
-  icon        String         // emoji or icon name
-  description String
-  category    String         // oiling, hydrating, undoing, washing, etc.
-  isDefault   Boolean        @default(false)
+  id               String         @id @default(cuid())
+  name             String         @unique // e.g., "Crown Hydration" (cute name)
+  icon             String         // emoji or icon name
+  description      String
+  category         String         // oiling, hydrating, undoing, washing, etc.
+  isDefault        Boolean        @default(false)
+  frequency        String         @default("daily") // "daily", "weekly", "monthly"
+  isActive         Boolean        @default(true)
+  targetHairTypes  String[]       // ["TYPE_4A", "TYPE_4B"] — empty = all types
+  targetPorosities String[]       // ["LOW", "NORMAL", "HIGH"] — empty = all
+  targetGoals      String[]       // ["LENGTH", "DENSITY", "HEALTH", "MOISTURE", "DAMAGE_REPAIR"] — empty = all
+  estimatedMinutes Int            @default(5)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
-  logs        RoutineLog[]
+  logs             RoutineLog[]
+  userRoutines     UserRoutineTemplate[]
+}
+
+model UserRoutineTemplate {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateId String
+  template   RoutineTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  addedAt    DateTime        @default(now())
+
+  @@unique([userId, templateId])
+  @@index([userId])
 }
 
 model RoutineLog {

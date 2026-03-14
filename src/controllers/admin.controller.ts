@@ -324,6 +324,43 @@ export class AdminController {
     } catch (e) { next(e); }
   }
 
+  // ─── Routine Templates ────────────────────────────────────────────────
+
+  async getRoutineTemplates(req: Request, res: Response, next: NextFunction) {
+    try {
+      const templates = await adminService.getRoutineTemplates();
+      return ApiResponse.success(res, templates);
+    } catch (e) { next(e); }
+  }
+
+  async createRoutineTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const template = await adminService.createRoutineTemplate(req.body);
+      return ApiResponse.created(res, template, 'Routine template created');
+    } catch (e) { next(e); }
+  }
+
+  async updateRoutineTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const template = await adminService.updateRoutineTemplate(param(req.params.id), req.body);
+      return ApiResponse.success(res, template, 'Routine template updated');
+    } catch (e) { next(e); }
+  }
+
+  async deleteRoutineTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await adminService.deleteRoutineTemplate(param(req.params.id));
+      return ApiResponse.success(res, result, 'Routine template deleted');
+    } catch (e) { next(e); }
+  }
+
+  async toggleRoutineActive(req: Request, res: Response, next: NextFunction) {
+    try {
+      const template = await adminService.toggleRoutineActive(param(req.params.id));
+      return ApiResponse.success(res, template, 'Routine active status toggled');
+    } catch (e) { next(e); }
+  }
+
   // ─── Newsletter & Push ────────────────────────────────────────────────
 
   async getSubscribers(req: Request, res: Response, next: NextFunction) {

@@ -149,3 +149,24 @@ export const updateReviewStatusSchema = z.object({
 });
 
 export type UpdateReviewStatusInput = z.infer<typeof updateReviewStatusSchema>;
+
+// ─── Routine Templates ────────────────────────────────────────────────────────
+
+export const createRoutineTemplateAdminSchema = z.object({
+  name: z.string().min(1).max(100),
+  icon: z.string().min(1),
+  description: z.string().min(1).max(500),
+  category: z.string().min(1).max(50),
+  frequency: z.enum(['daily', 'weekly', 'monthly']).default('daily'),
+  isDefault: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+  targetHairTypes: z.array(z.string()).default([]),
+  targetPorosities: z.array(z.string()).default([]),
+  targetGoals: z.array(z.string()).default([]),
+  estimatedMinutes: z.number().int().min(1).max(240).default(5),
+});
+
+export type CreateRoutineTemplateAdminInput = z.infer<typeof createRoutineTemplateAdminSchema>;
+
+export const updateRoutineTemplateAdminSchema = createRoutineTemplateAdminSchema.partial();
+export type UpdateRoutineTemplateAdminInput = z.infer<typeof updateRoutineTemplateAdminSchema>;

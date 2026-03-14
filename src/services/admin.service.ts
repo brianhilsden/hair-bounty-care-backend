@@ -13,6 +13,8 @@ import {
   UpdateSalonInput,
   CreateAdInput,
   UpdateAdInput,
+  CreateRoutineTemplateAdminInput,
+  UpdateRoutineTemplateAdminInput,
 } from '../validations/admin.validation';
 
 function generateSlug(title: string): string {
@@ -522,6 +524,43 @@ export class AdminService {
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) throw ApiError.notFound('Ad not found');
     return prisma.ad.update({ where: { id }, data: { isActive: !ad.isActive } });
+  }
+
+  // ─── Routine Templates ────────────────────────────────────────────────────
+
+  async getRoutineTemplates() {
+    return prisma.routineTemplate.findMany({
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createRoutineTemplate(data: CreateRoutineTemplateAdminInput) {
+    return prisma.routineTemplate.create({ data });
+  }
+
+  async updateRoutineTemplate(id: string, data: UpdateRoutineTemplateAdminInput) {
+    const template = await prisma.routineTemplate.findUnique({ where: { id } });
+    if (!template) throw ApiError.notFound('Routine template not found');
+    return prisma.routineTemplate.update({ where: { id }, data });
+  }
+
+  async deleteRoutineTemplate(id: string) {
+    const template = await prisma.routineTemplate.findUnique({ where: { id } });
+    if (!template) throw ApiError.notFound('Routine template not found');
+
+    // Check if any logs reference this template
+    const logCount = await prisma.routineLog.count({ where: { templateId: id } });
+    if (logCount > 0) {
+      // Soft delete: deactivate instead
+      return prisma.routineTemplate.update({ where: { id }, data: { isActive: false } });
+    }
+    return prisma.routineTemplate.delete({ where: { id } });
+  }
+
+  async toggleRoutineActive(id: string) {
+    const template = await prisma.routineTemplate.findUnique({ where: { id } });
+    if (!template) throw ApiError.notFound('Routine template not found');
+    return prisma.routineTemplate.update({ where: { id }, data: { isActive: !template.isActive } });
   }
 
   // ─── Newsletter & Push ───────────────────────────────────────────────
