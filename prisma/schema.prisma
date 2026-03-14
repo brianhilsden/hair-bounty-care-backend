@@ -1,0 +1,569 @@
+// This is your Prisma schema file
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── USER & AUTH ─────────────────────────────────────────────
+
+enum AgeGroup {
+  KIDS        // Under 12
+  TEENS       // 13-17
+  YOUNG_ADULT // 18-30
+  ADULT       // 31+
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  PREFER_NOT_TO_SAY
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  password          String
+  firstName         String
+  lastName          String
+  avatarUrl         String?
+  ageGroup          AgeGroup?
+  gender            Gender?
+  role              Role      @default(USER)
+  isSuspended       Boolean   @default(false)
+  isEmailVerified   Boolean   @default(false)
+  isOnboarded       Boolean   @default(false)
+  pushToken         String?
+  referralCode      String    @unique
+  referredBy        String?   // referralCode of the user who referred them
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  profile           HairProfile?
+  subscription      Subscription?
+  routineLogs       RoutineLog[]
+  progressPhotos    ProgressPhoto[]
+  communityPosts    CommunityPost[]
+  chatMessages      ChatMessage[]
+  reviews           Review[]
+  orders            Order[]
+  referrals         Referral[]        @relation("Referrer")
+  referredByUser    Referral?         @relation("Referred")
+  badges            UserBadge[]
+  notifications     Notification[]
+  streaks           Streak?
+  leaderboardEntry  LeaderboardEntry?
+  aiConversations   AiConversation[]
+
+  @@index([email])
+  @@index([referralCode])
+}
+
+model RefreshToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  userId      String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ─── HAIR PROFILE ────────────────────────────────────────────
+
+enum CurlPattern {
+  TYPE_1A   // Straight, fine
+  TYPE_1B   // Straight, medium
+  TYPE_1C   // Straight, coarse
+  TYPE_2A   // Wavy, fine
+  TYPE_2B   // Wavy, medium
+  TYPE_2C   // Wavy, coarse
+  TYPE_3A   // Curly, loose
+  TYPE_3B   // Curly, medium
+  TYPE_3C   // Curly, tight
+  TYPE_4A   // Coily, soft
+  TYPE_4B   // Coily, wiry
+  TYPE_4C   // Coily, tight
+}
+
+enum HairDensity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum Porosity {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum StrandThickness {
+  FINE
+  MEDIUM
+  THICK
+}
+
+enum HairGoal {
+  LENGTH
+  DENSITY
+  HEALTH
+  MOISTURE
+  DAMAGE_REPAIR
+  FRESH_START
+  STYLE_VARIETY
+}
+
+model HairProfile {
+  id               String          @id @default(cuid())
+  userId           String          @unique
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  curlPattern      CurlPattern?
+  density          HairDensity?
+  porosity         Porosity?
+  strandThickness  StrandThickness?
+  scalpType        String?         // oily, dry, normal, combination
+  hairPhotoUrl     String?         // Initial hair photo from onboarding
+  faceShape        String?         // oval, round, square, heart, oblong
+
+  goals            HairGoal[]
+  currentLength    Float?          // in cm
+  targetLength     Float?          // in cm
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+// ─── DAILY ROUTINE & GAMIFICATION ────────────────────────────
+
+model RoutineTemplate {
+  id          String         @id @default(cuid())
+  name        String         @unique // e.g., "Crown Hydration" (cute name)
+  icon        String         // emoji or icon name
+  description String
+  category    String         // oiling, hydrating, undoing, washing, etc.
+  isDefault   Boolean        @default(false)
+
+  logs        RoutineLog[]
+}
+
+model RoutineLog {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateId   String
+  template     RoutineTemplate @relation(fields: [templateId], references: [id])
+  completedAt  DateTime        @default(now())
+  notes        String?
+
+  @@index([userId, completedAt])
+}
+
+model Streak {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentStreak  Int      @default(0)
+  longestStreak  Int      @default(0)
+  lastActiveDate DateTime?
+  updatedAt      DateTime @updatedAt
+}
+
+model Badge {
+  id          String      @id @default(cuid())
+  name        String      @unique  // e.g., "Crown Queen", "Hydration Hero"
+  description String
+  iconUrl     String
+  requirement String      // JSON string describing unlock criteria
+  users       UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id])
+  earnedAt  DateTime @default(now())
+
+  @@unique([userId, badgeId])
+}
+
+model LeaderboardEntry {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score     Int      @default(0)     // Total routine completions
+  rank      Int?
+  weekScore Int      @default(0)     // Weekly score (resets)
+  updatedAt DateTime @updatedAt
+
+  @@index([score(sort: Desc)])
+}
+
+// ─── PROGRESS TRACKING ───────────────────────────────────────
+
+model ProgressPhoto {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photoUrl    String
+  caption     String?
+  hairLength  Float?   // measured/estimated length in cm
+  notes       String?
+  takenAt     DateTime @default(now())
+
+  @@index([userId, takenAt])
+}
+
+// ─── COMMUNITY ───────────────────────────────────────────────
+
+model CommunityGroup {
+  id          String          @id @default(cuid())
+  name        String          @unique // e.g., "Braids Lovers", "Natural Curls"
+  description String
+  coverUrl    String?
+  category    String          // hairstyle type: braids, locs, natural, relaxed, etc.
+  memberCount Int             @default(0)
+
+  posts       CommunityPost[]
+  messages    ChatMessage[]
+  members     CommunityMember[]
+
+  createdAt   DateTime        @default(now())
+}
+
+model CommunityMember {
+  id        String         @id @default(cuid())
+  userId    String
+  groupId   String
+  group     CommunityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime       @default(now())
+
+  @@unique([userId, groupId])
+}
+
+model CommunityPost {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     CommunityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  content   String
+  imageUrls String[]       // Array of image URLs
+  likes     Int            @default(0)
+  createdAt DateTime       @default(now())
+
+  @@index([groupId, createdAt])
+}
+
+model ChatMessage {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     CommunityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  content   String
+  imageUrl  String?
+  createdAt DateTime       @default(now())
+
+  @@index([groupId, createdAt])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetType String  // "product", "salon", "general"
+  targetId   String? // product or salon id
+  rating    Int      // 1-5
+  content   String
+  imageUrls String[]
+  status    String   @default("pending") // "pending", "approved", "rejected"
+  createdAt DateTime @default(now())
+
+  @@index([targetType, targetId])
+}
+
+// ─── SALONS ──────────────────────────────────────────────────
+
+model Salon {
+  id            String   @id @default(cuid())
+  name          String
+  description   String
+  coverUrl      String?
+  imageUrls     String[]
+  phone         String?
+  email         String?
+  website       String?
+
+  // Location
+  address       String
+  city          String
+  latitude      Float?
+  longitude     Float?
+
+  // Filters
+  isHighEnd     Boolean  @default(false)
+  isBudget      Boolean  @default(false)
+  isKidsFriendly Boolean @default(false)
+  isOrganic     Boolean  @default(false)
+  isGreenCertified Boolean @default(false)
+  specialties   String[] // braids, locs, natural, relaxed, coloring, etc.
+
+  rating        Float    @default(0)
+  reviewCount   Int      @default(0)
+  isAffiliate   Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([city])
+}
+
+// ─── E-COMMERCE ──────────────────────────────────────────────
+
+enum ProductType {
+  DIY_INGREDIENT    // Raw ingredients for DIY recipes
+  READY_MADE        // Store-bought products
+  HAIR_BOUNTY_OWN   // Hair Bounty Care branded products
+}
+
+enum PriceRange {
+  BUDGET
+  MID_RANGE
+  PREMIUM
+}
+
+model ProductCategory {
+  id        String    @id @default(cuid())
+  name      String    @unique  // oils, shampoos, conditioners, tools, etc.
+  iconUrl   String?
+  products  Product[]
+}
+
+model Product {
+  id            String          @id @default(cuid())
+  name          String
+  description   String
+  price         Float           // in KES
+  imageUrls     String[]
+  productType   ProductType
+  priceRange    PriceRange
+  categoryId    String
+  category      ProductCategory @relation(fields: [categoryId], references: [id])
+
+  // For specific hair types
+  suitableFor   CurlPattern[]
+  scalpTypes    String[]        // oily, dry, normal
+  isEcoCertified Boolean       @default(false)
+  isZeroWaste    Boolean       @default(false)
+
+  rating        Float           @default(0)
+  reviewCount   Int             @default(0)
+  inStock       Boolean         @default(true)
+  affiliateUrl  String?         // External purchase link (for affiliate products)
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  orderItems    OrderItem[]
+
+  @@index([categoryId])
+  @@index([productType])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         OrderItem[]
+  totalAmount   Float       // in KES
+  status        String      @default("pending") // pending, confirmed, shipped, delivered, cancelled
+  paymentRef    String?     // M-Pesa/Paystack reference
+  paymentMethod String?     // mpesa, card
+  deliveryAddress String?
+  deliveryNotes String?
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([userId])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float   // Price at time of purchase
+}
+
+// ─── SUBSCRIPTIONS ───────────────────────────────────────────
+
+enum SubscriptionPlan {
+  FREE_TRIAL     // 7 days free
+  MONTHLY        // 100 KES/month
+  ANNUAL         // 850 KES/year
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  TRIAL
+}
+
+model Subscription {
+  id          String             @id @default(cuid())
+  userId      String             @unique
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan
+  status      SubscriptionStatus @default(TRIAL)
+  startDate   DateTime           @default(now())
+  endDate     DateTime
+  autoRenew   Boolean            @default(true)
+  paymentRef  String?
+
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+// ─── OFFERS & DEALS ──────────────────────────────────────────
+
+model Offer {
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  discountType  String   // "percentage", "fixed_amount", "package"
+  discountValue Float    // percentage or KES amount
+  code          String?  @unique
+  minPurchase   Float?
+  maxUses       Int?
+  usedCount     Int      @default(0)
+  validFrom     DateTime
+  validUntil    DateTime
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+}
+
+// ─── REFERRALS ───────────────────────────────────────────────
+
+model Referral {
+  id           String   @id @default(cuid())
+  referrerId   String
+  referrer     User     @relation("Referrer", fields: [referrerId], references: [id])
+  referredId   String   @unique
+  referred     User     @relation("Referred", fields: [referredId], references: [id])
+  discountGiven Boolean @default(false) // % off next subscription
+  createdAt    DateTime @default(now())
+
+  @@index([referrerId])
+}
+
+// ─── NOTIFICATIONS ───────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      String   // "reminder", "delivery", "badge", "community", "offer", "system"
+  data      Json?    // Additional data for deep linking
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+// ─── BLOG / CONTENT ──────────────────────────────────────────
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  excerpt     String
+  content     String   // Markdown or rich text
+  coverUrl    String
+  author      String
+  authorAvatar String?
+  category    String
+  tags        String[]
+  readTime    Int      // minutes
+  isPublished Boolean  @default(true)
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+  @@index([category])
+}
+
+// ─── ADS ─────────────────────────────────────────────────────
+
+model Ad {
+  id           String   @id @default(cuid())
+  title        String
+  imageUrl     String
+  targetUrl    String
+  placement    String   // "home_banner", "explore_banner", "product_sponsored"
+  impressions  Int      @default(0)
+  clicks       Int      @default(0)
+  isActive     Boolean  @default(true)
+  startDate    DateTime
+  endDate      DateTime
+  createdAt    DateTime @default(now())
+}
+
+// ─── NEWSLETTER ──────────────────────────────────────────────
+
+model NewsletterSubscription {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// ─── AI CONVERSATIONS ─────────────────────────────────────────
+
+model AiConversation {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String      // Auto-generated from first user message (first 60 chars)
+  messages  AiMessage[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([userId, updatedAt(sort: Desc)])
+}
+
+model AiMessage {
+  id             String          @id @default(cuid())
+  conversationId String
+  conversation   AiConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String          // "user" | "assistant"
+  content        String
+  order          Int             // message position in conversation
+  createdAt      DateTime        @default(now())
+
+  @@index([conversationId, order])
+}
