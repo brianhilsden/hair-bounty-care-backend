@@ -65,7 +65,7 @@ export const sendVerificationEmail = async (to: string, token: string) => {
 };
 
 export const sendPasswordResetEmail = async (to: string, token: string) => {
-  const resetUrl = `${env.FRONTEND_URL || 'http://localhost:8081'}/reset-password?token=${token}`;
+  const resetUrl = `${env.FRONTEND_URL || 'http://localhost:8081'}/auth/reset-password?token=${token}`;
 
   const html = `
     <!DOCTYPE html>
