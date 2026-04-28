@@ -9,6 +9,9 @@ import routes from './routes';
 
 const app: Application = express();
 
+// Trust first proxy — required when deployed behind a load balancer/reverse proxy
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(

@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/apiError';
+import { notificationsService } from './notifications.service';
 import type { CreateRoutineTemplateInput, UpdateRoutineTemplateInput, LogRoutineInput } from '../validations/routine.validation';
 
 export class RoutineService {
@@ -352,7 +353,7 @@ export class RoutineService {
       // Logged yesterday - continue streak
       if (lastActive.getTime() === yesterday.getTime()) {
         const newStreak = streak.currentStreak + 1;
-        return await prisma.streak.update({
+        const updated = await prisma.streak.update({
           where: { userId },
           data: {
             currentStreak: newStreak,
@@ -360,16 +361,41 @@ export class RoutineService {
             lastActiveDate: today,
           },
         });
+
+        if ([7, 30, 100].includes(newStreak)) {
+          await notificationsService.sendToUser({
+            userId,
+            title: `🔥 ${newStreak}-Day Streak!`,
+            body: `Incredible! You've kept up your hair care routine for ${newStreak} days straight.`,
+            type: 'streak_milestone',
+            data: { streak: newStreak },
+          });
+        }
+
+        return updated;
       }
 
       // Streak broken - reset to 1
-      return await prisma.streak.update({
+      const brokenStreak = streak.currentStreak;
+      const result = await prisma.streak.update({
         where: { userId },
         data: {
           currentStreak: 1,
           lastActiveDate: today,
         },
       });
+
+      if (brokenStreak >= 3) {
+        await notificationsService.sendToUser({
+          userId,
+          title: '😔 Streak Broken',
+          body: `Your ${brokenStreak}-day streak ended, but you're back today! Keep going.`,
+          type: 'streak_broken',
+          data: { previousStreak: brokenStreak },
+        });
+      }
+
+      return result;
     }
 
     // No previous active date - start streak
