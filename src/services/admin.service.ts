@@ -138,12 +138,20 @@ export class AdminService {
     if (!order) throw ApiError.notFound('Order not found');
     const updated = await prisma.order.update({ where: { id }, data: { status } });
 
-    if (status === 'shipped') {
+    const statusNotifications: Record<string, { title: string; body: string }> = {
+      confirmed:  { title: '✅ Order Confirmed!',      body: 'Your order has been confirmed and is being prepared.' },
+      shipped:    { title: '🚚 Your Order is on its Way!', body: 'Your order is out for delivery. Get ready!' },
+      delivered:  { title: '📦 Order Delivered!',      body: 'Your order has been delivered. Enjoy!' },
+      cancelled:  { title: '❌ Order Cancelled',        body: 'Your order has been cancelled. Contact support if this was unexpected.' },
+    };
+
+    const notif = statusNotifications[status];
+    if (notif) {
       await notificationsService.sendToUser({
         userId: order.userId,
-        title: '🚚 Your Order is on its Way!',
-        body: `Your order is out for delivery. Get ready!`,
-        type: 'order_shipped',
+        title: notif.title,
+        body: notif.body,
+        type: `order_${status}`,
         data: { orderId: id },
       });
     }
