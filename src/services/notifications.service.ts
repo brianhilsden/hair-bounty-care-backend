@@ -26,10 +26,14 @@ export class NotificationsService {
 
     if (user?.pushToken) {
       try {
+        console.log('[Push] sending to token:', user.pushToken);
         await this.sendPushNotification(user.pushToken, title, body, data);
-      } catch {
-        // Push failure should never break the main flow
+        console.log('[Push] sent successfully');
+      } catch (err) {
+        console.error('[Push] failed:', err);
       }
+    } else {
+      console.warn('[Push] no pushToken for userId:', userId);
     }
   }
 

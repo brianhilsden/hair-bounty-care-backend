@@ -138,7 +138,6 @@ export class AdminService {
     if (!order) throw ApiError.notFound('Order not found');
     const updated = await prisma.order.update({ where: { id }, data: { status } });
 
-    console.log('[OrderStatus] status received:', JSON.stringify(status), 'match:', status === 'shipped');
     if (status === 'shipped') {
       await notificationsService.sendToUser({
         userId: order.userId,
