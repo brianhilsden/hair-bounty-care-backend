@@ -1,7 +1,7 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/apiError';
 
-const EXPO_PUSH_URL = 'https://exp.host/--/push/v2/send';
+const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 export class NotificationsService {
   // ─── Internal: send push + create in-app notification ─────────────────────
