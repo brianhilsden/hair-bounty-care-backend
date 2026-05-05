@@ -144,6 +144,7 @@ router.patch('/routines/:id/toggle', adminMutationRateLimiter, ctrl.toggleRoutin
 // ─── Newsletter & Push ───────────────────────────────────────────────────────
 router.get('/subscribers', ctrl.getSubscribers.bind(ctrl));
 router.post('/push', adminMutationRateLimiter, ctrl.sendPush.bind(ctrl));
+router.post('/push/user', adminMutationRateLimiter, ctrl.sendPushToUser.bind(ctrl));
 
 // ─── Ads ──────────────────────────────────────────────────────────────────────
 router.get('/ads', ctrl.getAds.bind(ctrl));

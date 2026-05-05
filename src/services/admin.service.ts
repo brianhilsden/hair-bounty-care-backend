@@ -277,6 +277,7 @@ export class AdminService {
           isSuspended: true,
           isEmailVerified: true,
           isOnboarded: true,
+          pushToken: true,
           createdAt: true,
           _count: { select: { orders: true } },
         },
@@ -582,8 +583,7 @@ export class AdminService {
   }
 
   async sendPush({ title, body, target }: { title: string; body: string; target: string }) {
-    // Build filter based on target segment
-    const where: any = { pushToken: { not: null }, isSuspended: false };
+    const where: any = { isSuspended: false };
     if (target === 'trial') {
       where.subscription = { status: 'TRIAL' };
     } else if (target === 'monthly') {
@@ -594,20 +594,31 @@ export class AdminService {
 
     const users = await prisma.user.findMany({
       where,
-      select: { id: true, pushToken: true },
+      select: { id: true },
     });
 
-    // Log a notification record for each user (actual push delivery handled by mobile app/FCM)
-    await prisma.notification.createMany({
-      data: users.map((u) => ({
-        userId: u.id,
-        title,
-        body,
-        type: 'system',
-      })),
-      skipDuplicates: true,
-    });
+    await Promise.all(
+      users.map((u) =>
+        notificationsService.sendToUser({ userId: u.id, title, body, type: 'system', data: {} })
+      )
+    );
 
     return { sent: users.length, title, body, target };
+  }
+
+  async sendPushToUser({ userId, title, body }: { userId: string; title: string; body: string }) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, firstName: true, lastName: true, email: true, pushToken: true },
+    });
+    if (!user) throw ApiError.notFound('User not found');
+
+    await notificationsService.sendToUser({ userId, title, body, type: 'admin_message', data: {} });
+
+    return {
+      delivered: !!user.pushToken,
+      pushToken: user.pushToken,
+      user: { id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email },
+    };
   }
 }

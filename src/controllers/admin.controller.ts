@@ -377,7 +377,18 @@ export class AdminController {
         return ApiResponse.error(res, 'title and body are required', 400);
       }
       const result = await adminService.sendPush({ title, body, target: target ?? 'all' });
-      return ApiResponse.success(res, result, 'Push notification queued');
+      return ApiResponse.success(res, result, 'Push notification sent');
+    } catch (e) { next(e); }
+  }
+
+  async sendPushToUser(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { userId, title, body } = req.body;
+      if (!userId || !title || !body) {
+        return ApiResponse.error(res, 'userId, title and body are required', 400);
+      }
+      const result = await adminService.sendPushToUser({ userId, title, body });
+      return ApiResponse.success(res, result, 'Notification sent');
     } catch (e) { next(e); }
   }
 }
