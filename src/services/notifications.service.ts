@@ -1,6 +1,5 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/apiError';
-import https from 'https';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/push/v2/send';
 
@@ -38,45 +37,22 @@ export class NotificationsService {
   }
 
   // ─── Internal: fire-and-forget push via Expo Push API ─────────────────────
-  private sendPushNotification(
+  private async sendPushNotification(
     token: string,
     title: string,
     body: string,
     data: object
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const payload = JSON.stringify({
-        to: token,
-        title,
-        body,
-        data,
-        sound: 'default',
-        priority: 'high',
-      });
-
-      const url = new URL(EXPO_PUSH_URL);
-      const options: https.RequestOptions = {
-        hostname: url.hostname,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Accept-Encoding': 'gzip, deflate',
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
-        },
-      };
-
-      const req = https.request(options, (res) => {
-        // Drain response to free socket
-        res.resume();
-        res.on('end', () => resolve());
-      });
-
-      req.on('error', reject);
-      req.write(payload);
-      req.end();
+    const res = await fetch(EXPO_PUSH_URL, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ to: token, title, body, data, sound: 'default', priority: 'high' }),
     });
+    const json = await res.json() as any;
+    console.log('[Push] Expo response:', JSON.stringify(json));
   }
 
   async getNotifications(userId: string, params: { page?: number; limit?: number } = {}) {
