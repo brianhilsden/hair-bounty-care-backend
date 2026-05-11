@@ -391,4 +391,58 @@ export class AdminController {
       return ApiResponse.success(res, result, 'Notification sent');
     } catch (e) { next(e); }
   }
+
+  // ─── Hair Tips ────────────────────────────────────────────────────────────
+
+  async generateTips(req: Request, res: Response, next: NextFunction) {
+    try {
+      // Fire and forget — generation is slow (~2 min), respond immediately
+      adminService.generateTipPool().catch((err) =>
+        console.error('[Admin] generateTipPool error:', err)
+      );
+      return ApiResponse.success(res, { started: true }, 'Tip generation started in background');
+    } catch (e) { next(e); }
+  }
+
+  async getTips(req: Request, res: Response, next: NextFunction) {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const category = qs(req.query.category);
+      const result = await adminService.getTips({ page, limit, category });
+      return ApiResponse.success(res, result.tips, 'Success', 200, {
+        page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages,
+      });
+    } catch (e) { next(e); }
+  }
+
+  async toggleTip(req: Request, res: Response, next: NextFunction) {
+    try {
+      const tip = await adminService.toggleTip(param(req.params.id));
+      return ApiResponse.success(res, tip, 'Tip toggled');
+    } catch (e) { next(e); }
+  }
+
+  async deleteTip(req: Request, res: Response, next: NextFunction) {
+    try {
+      await adminService.deleteTip(param(req.params.id));
+      return ApiResponse.success(res, null, 'Tip deleted');
+    } catch (e) { next(e); }
+  }
+
+  // ─── Settings ─────────────────────────────────────────────────────────────
+
+  async getSettings(req: Request, res: Response, next: NextFunction) {
+    try {
+      const settings = await adminService.getSettings();
+      return ApiResponse.success(res, settings);
+    } catch (e) { next(e); }
+  }
+
+  async updateSettings(req: Request, res: Response, next: NextFunction) {
+    try {
+      const settings = await adminService.updateSettings(req.body);
+      return ApiResponse.success(res, settings, 'Settings updated');
+    } catch (e) { next(e); }
+  }
 }

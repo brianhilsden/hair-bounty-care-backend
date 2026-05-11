@@ -146,6 +146,16 @@ router.get('/subscribers', ctrl.getSubscribers.bind(ctrl));
 router.post('/push', adminMutationRateLimiter, ctrl.sendPush.bind(ctrl));
 router.post('/push/user', adminMutationRateLimiter, ctrl.sendPushToUser.bind(ctrl));
 
+// ─── Hair Tips ───────────────────────────────────────────────────────────────
+router.post('/tips/generate', adminMutationRateLimiter, ctrl.generateTips.bind(ctrl));
+router.get('/tips', ctrl.getTips.bind(ctrl));
+router.patch('/tips/:id/toggle', adminMutationRateLimiter, ctrl.toggleTip.bind(ctrl));
+router.delete('/tips/:id', adminMutationRateLimiter, ctrl.deleteTip.bind(ctrl));
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+router.get('/settings', ctrl.getSettings.bind(ctrl));
+router.patch('/settings', adminMutationRateLimiter, ctrl.updateSettings.bind(ctrl));
+
 // ─── Ads ──────────────────────────────────────────────────────────────────────
 router.get('/ads', ctrl.getAds.bind(ctrl));
 router.post('/ads',

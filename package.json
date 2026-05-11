@@ -13,6 +13,7 @@
     "prisma:seed:routines": "tsx prisma/seed-routines.ts",
     "prisma:seed:badges": "tsx prisma/seed-badges.ts",
     "prisma:seed:blogs": "tsx prisma/seed-blogs.ts",
+    "prisma:seed:tips": "tsx prisma/seed-tips.ts",
     "prisma:studio": "prisma studio"
   },
   "keywords": [],

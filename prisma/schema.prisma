@@ -68,6 +68,7 @@ model User {
   leaderboardEntry  LeaderboardEntry?
   aiConversations   AiConversation[]
   userRoutines      UserRoutineTemplate[]
+  sentTips          SentTip[]
 
   @@index([email])
   @@index([referralCode])
@@ -611,4 +612,43 @@ model AiMessage {
   createdAt      DateTime        @default(now())
 
   @@index([conversationId, order])
+}
+
+// ─── APP SETTINGS ────────────────────────────────────────────
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ─── HAIR TIPS ────────────────────────────────────────────────
+
+model HairTip {
+  id              String    @id @default(cuid())
+  title           String
+  body            String
+  category        String    // "moisture" | "growth" | "scalp" | "styling" | "ingredients" | "seasonal" | "protective"
+  targetHairTypes Json      // string[] — e.g. ["TYPE_4A","TYPE_4B"] — empty array = universal
+  targetGoals     Json      // string[] — e.g. ["LENGTH","MOISTURE"] — empty array = all goals
+  targetPorosity  Json      // string[] — e.g. ["LOW","HIGH"] — empty array = all porosity types
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  sentTips        SentTip[]
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model SentTip {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipId     String
+  tip       HairTip  @relation(fields: [tipId], references: [id], onDelete: Cascade)
+  sentAt    DateTime @default(now())
+
+  @@unique([userId, tipId])
+  @@index([userId])
 }

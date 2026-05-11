@@ -1,3 +1,4 @@
+import { generateText } from 'ai';
 import { prisma } from '../config/database';
 import { ApiError } from '../utils/apiError';
 import { notificationsService } from './notifications.service';
@@ -620,5 +621,165 @@ export class AdminService {
       pushToken: user.pushToken,
       user: { id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email },
     };
+  }
+
+  // ─── Hair Tips ────────────────────────────────────────────────────────────
+
+  async getTips(filters: { page?: number; limit?: number; category?: string } = {}) {
+    const { page = 1, limit = 50, category } = filters;
+    const where: any = {};
+    if (category) where.category = category;
+
+    const [tips, total] = await prisma.$transaction([
+      prisma.hairTip.findMany({
+        where,
+        orderBy: [{ category: 'asc' }, { createdAt: 'desc' }],
+        take: limit,
+        skip: (page - 1) * limit,
+      }),
+      prisma.hairTip.count({ where }),
+    ]);
+
+    return { tips, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async toggleTip(id: string) {
+    const tip = await prisma.hairTip.findUnique({ where: { id } });
+    if (!tip) throw ApiError.notFound('Tip not found');
+    return prisma.hairTip.update({ where: { id }, data: { isActive: !tip.isActive } });
+  }
+
+  async deleteTip(id: string) {
+    const tip = await prisma.hairTip.findUnique({ where: { id } });
+    if (!tip) throw ApiError.notFound('Tip not found');
+    await prisma.sentTip.deleteMany({ where: { tipId: id } });
+    return prisma.hairTip.delete({ where: { id } });
+  }
+
+  async generateTipPool() {
+    const CATEGORIES = ['moisture', 'growth', 'scalp', 'styling', 'ingredients', 'seasonal', 'protective'];
+
+    const HAIR_TYPE_GROUPS = [
+      { types: ['TYPE_1A', 'TYPE_1B', 'TYPE_1C'], description: 'straight hair (Type 1A, 1B, 1C)' },
+      { types: ['TYPE_2A', 'TYPE_2B', 'TYPE_2C'], description: 'wavy hair (Type 2A, 2B, 2C)' },
+      { types: ['TYPE_3A', 'TYPE_3B', 'TYPE_3C'], description: 'curly hair (Type 3A, 3B, 3C)' },
+      { types: ['TYPE_4A', 'TYPE_4B', 'TYPE_4C'], description: 'coily/kinky hair (Type 4A, 4B, 4C) for people of African descent' },
+    ];
+
+    // Deactivate existing active tips before regenerating
+    await prisma.hairTip.updateMany({ data: { isActive: false } });
+
+    let total = 0;
+
+    for (const group of HAIR_TYPE_GROUPS) {
+      for (const category of CATEGORIES) {
+        const tips = await this._generateTipsFromAI(category, group.description, 30);
+        for (const tip of tips) {
+          await prisma.hairTip.create({
+            data: {
+              title: tip.title,
+              body: tip.body,
+              category,
+              targetHairTypes: group.types,
+              targetGoals: [],
+              targetPorosity: [],
+              isActive: true,
+            },
+          });
+          total++;
+        }
+      }
+    }
+
+    // Universal tips
+    for (const category of CATEGORIES) {
+      const tips = await this._generateTipsFromAI(category, 'all hair types universally', 10);
+      for (const tip of tips) {
+        await prisma.hairTip.create({
+          data: {
+            title: tip.title,
+            body: tip.body,
+            category,
+            targetHairTypes: [],
+            targetGoals: [],
+            targetPorosity: [],
+            isActive: true,
+          },
+        });
+        total++;
+      }
+    }
+
+    console.log(`[Admin] generateTipPool complete — inserted ${total} tips`);
+    return { total };
+  }
+
+  // ─── App Settings ─────────────────────────────────────────────────────────
+
+  async getSettings() {
+    const rows = await prisma.appSetting.findMany();
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.key] = r.value;
+    // Return with defaults for known keys
+    return {
+      tipDispatchHourUTC: parseInt(map['tipDispatchHourUTC'] ?? '6', 10),
+    };
+  }
+
+  async updateSettings(payload: { tipDispatchHourUTC?: number }) {
+    const updates: Promise<unknown>[] = [];
+
+    if (payload.tipDispatchHourUTC !== undefined) {
+      const h = Math.max(0, Math.min(23, Math.round(payload.tipDispatchHourUTC)));
+      updates.push(
+        prisma.appSetting.upsert({
+          where: { key: 'tipDispatchHourUTC' },
+          create: { key: 'tipDispatchHourUTC', value: String(h) },
+          update: { value: String(h) },
+        })
+      );
+    }
+
+    await Promise.all(updates);
+    return this.getSettings();
+  }
+
+  private async _generateTipsFromAI(
+    category: string,
+    hairDescription: string,
+    count: number
+  ): Promise<{ title: string; body: string }[]> {
+    const prompt = `Generate ${count} unique, practical hair care tips for ${hairDescription}, focused on "${category}".
+
+Rules:
+- Title: max 8 words, catchy and direct
+- Body: exactly 1-2 sentences, max 30 words, conversational tone
+- No fluff, no numbering
+
+Respond with ONLY a valid JSON array, no markdown:
+[{"title": "...", "body": "..."}, ...]`;
+
+    try {
+      const result = await generateText({
+        model: 'openai/gpt-4.1-mini',
+        prompt,
+        maxOutputTokens: 2000,
+        temperature: 0.8,
+      });
+
+      const cleaned = result.text
+        .trim()
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+
+      const parsed = JSON.parse(cleaned);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((t: any) => t.title && t.body);
+    } catch (err) {
+      console.error(`[Admin] _generateTipsFromAI failed [${category}/${hairDescription}]:`, err);
+      return [];
+    }
   }
 }
