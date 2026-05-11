@@ -720,13 +720,13 @@ export class AdminService {
     const rows = await prisma.appSetting.findMany();
     const map: Record<string, string> = {};
     for (const r of rows) map[r.key] = r.value;
-    // Return with defaults for known keys
     return {
       tipDispatchHourUTC: parseInt(map['tipDispatchHourUTC'] ?? '6', 10),
+      tipDispatchMinuteUTC: parseInt(map['tipDispatchMinuteUTC'] ?? '0', 10),
     };
   }
 
-  async updateSettings(payload: { tipDispatchHourUTC?: number }) {
+  async updateSettings(payload: { tipDispatchHourUTC?: number; tipDispatchMinuteUTC?: number }) {
     const updates: Promise<unknown>[] = [];
 
     if (payload.tipDispatchHourUTC !== undefined) {
@@ -736,6 +736,17 @@ export class AdminService {
           where: { key: 'tipDispatchHourUTC' },
           create: { key: 'tipDispatchHourUTC', value: String(h) },
           update: { value: String(h) },
+        })
+      );
+    }
+
+    if (payload.tipDispatchMinuteUTC !== undefined) {
+      const m = Math.max(0, Math.min(59, Math.round(payload.tipDispatchMinuteUTC)));
+      updates.push(
+        prisma.appSetting.upsert({
+          where: { key: 'tipDispatchMinuteUTC' },
+          create: { key: 'tipDispatchMinuteUTC', value: String(m) },
+          update: { value: String(m) },
         })
       );
     }

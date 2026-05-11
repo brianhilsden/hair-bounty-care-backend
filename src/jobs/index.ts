@@ -13,16 +13,21 @@ function shouldRunMonthlyJob(): boolean {
   return now.getDate() === 1 && now.getHours() === 9 && now.getMinutes() === 0;
 }
 
-// Reads tip dispatch hour (UTC) from DB — default 6 (= 9AM EAT)
-async function getTipDispatchHourUTC(): Promise<number> {
+// Reads tip dispatch time (UTC) from DB — defaults to 06:00 (= 9AM EAT)
+async function getTipDispatchTimeUTC(): Promise<{ hour: number; minute: number }> {
   try {
-    const setting = await prisma.appSetting.findUnique({ where: { key: 'tipDispatchHourUTC' } });
-    if (setting) {
-      const h = parseInt(setting.value, 10);
-      if (!isNaN(h) && h >= 0 && h <= 23) return h;
-    }
+    const [hourRow, minuteRow] = await Promise.all([
+      prisma.appSetting.findUnique({ where: { key: 'tipDispatchHourUTC' } }),
+      prisma.appSetting.findUnique({ where: { key: 'tipDispatchMinuteUTC' } }),
+    ]);
+    const hour = hourRow ? parseInt(hourRow.value, 10) : 6;
+    const minute = minuteRow ? parseInt(minuteRow.value, 10) : 0;
+    return {
+      hour: isNaN(hour) ? 6 : hour,
+      minute: isNaN(minute) ? 0 : minute,
+    };
   } catch {}
-  return 6; // fallback default: 9AM EAT
+  return { hour: 6, minute: 0 };
 }
 
 export function startJobs() {
@@ -32,22 +37,23 @@ export function startJobs() {
 
   setInterval(async () => {
     const now = new Date();
-    const dateKey = now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+    const hourKey = now.toISOString().slice(0, 13);  // YYYY-MM-DDTHH — for streak/monthly
+    const dayKey  = now.toISOString().slice(0, 10);  // YYYY-MM-DD    — for tips (once per day)
 
-    if (shouldRunStreakJob() && lastStreakRun !== dateKey) {
-      lastStreakRun = dateKey;
+    if (shouldRunStreakJob() && lastStreakRun !== hourKey) {
+      lastStreakRun = hourKey;
       runStreakAtRiskJob().catch((err) => console.error('[streakAtRisk] Error:', err));
     }
 
-    if (shouldRunMonthlyJob() && lastMonthlyRun !== dateKey) {
-      lastMonthlyRun = dateKey;
+    if (shouldRunMonthlyJob() && lastMonthlyRun !== hourKey) {
+      lastMonthlyRun = hourKey;
       runMonthlyProgressJob().catch((err) => console.error('[monthlyProgress] Error:', err));
     }
 
-    if (lastTipsRun !== dateKey && now.getUTCMinutes() === 0) {
-      const dispatchHour = await getTipDispatchHourUTC();
-      if (now.getUTCHours() === dispatchHour) {
-        lastTipsRun = dateKey;
+    if (lastTipsRun !== dayKey) {
+      const { hour, minute } = await getTipDispatchTimeUTC();
+      if (now.getUTCHours() === hour && now.getUTCMinutes() === minute) {
+        lastTipsRun = dayKey;
         runDailyTipsJob().catch((err) => console.error('[dailyTips] Error:', err));
       }
     }
