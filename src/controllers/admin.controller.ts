@@ -406,9 +406,11 @@ export class AdminController {
 
   async dispatchTipsNow(req: Request, res: Response, next: NextFunction) {
     try {
-      // Fire and forget — runs async, responds immediately
       const { runDailyTipsJob } = await import('../jobs/dailyTips.job');
-      runDailyTipsJob().catch((err) => console.error('[Admin] dispatchTipsNow error:', err));
+      runDailyTipsJob().catch((err) => {
+        console.error('[Admin] dispatchTipsNow error:', err?.message ?? err);
+        if (err?.stack) console.error(err.stack);
+      });
       return ApiResponse.success(res, { started: true }, 'Tip dispatch started — check server logs');
     } catch (e) { next(e); }
   }

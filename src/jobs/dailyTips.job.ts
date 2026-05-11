@@ -13,6 +13,11 @@ const TIP_TITLES: Record<string, string> = {
 };
 
 export async function runDailyTipsJob() {
+  console.log('[dailyTips] Job started');
+
+  const tipCount = await prisma.hairTip.count({ where: { isActive: true } });
+  console.log(`[dailyTips] Active tips in pool: ${tipCount}`);
+
   const users = await prisma.user.findMany({
     where: {
       pushToken: { not: null },
@@ -31,6 +36,8 @@ export async function runDailyTipsJob() {
     },
   });
 
+  console.log(`[dailyTips] Eligible users: ${users.length}`);
+
   let sent = 0;
   let skipped = 0;
 
@@ -39,12 +46,12 @@ export async function runDailyTipsJob() {
       const dispatched = await dispatchTipToUser(user.id, user.profile);
       if (dispatched) sent++;
       else skipped++;
-    } catch (err) {
-      console.error(`[dailyTips] Error for user ${user.id}:`, err);
+    } catch (err: any) {
+      console.error(`[dailyTips] Error for user ${user.id}:`, err?.message ?? err);
     }
   }
 
-  console.log(`[dailyTips] Sent: ${sent}, Skipped (no tips): ${skipped}, Total users: ${users.length}`);
+  console.log(`[dailyTips] Done — Sent: ${sent}, Skipped: ${skipped}, Total: ${users.length}`);
 }
 
 async function dispatchTipToUser(
@@ -80,22 +87,22 @@ async function findMatchingTip(
   curlPattern: string | null,
   excludeIds: string[]
 ): Promise<{ id: string; title: string; body: string; category: string } | null> {
-  // Use raw SQL for JSON array containment + RANDOM() — Prisma ORM can't do this natively
-  // Parameterize everything to avoid injection
+  try {
+    if (curlPattern) {
+      const rows = await prisma.$queryRaw<{ id: string; title: string; body: string; category: string }[]>(
+        buildQuery(curlPattern, excludeIds)
+      );
+      if (rows.length > 0) return rows[0];
+    }
 
-  if (curlPattern) {
-    // Try personalized: tips tagged for this hair type OR universal (empty array)
     const rows = await prisma.$queryRaw<{ id: string; title: string; body: string; category: string }[]>(
-      buildQuery(curlPattern, excludeIds)
+      buildQuery(null, excludeIds)
     );
-    if (rows.length > 0) return rows[0];
+    return rows.length > 0 ? rows[0] : null;
+  } catch (err: any) {
+    console.error('[dailyTips] findMatchingTip error:', err?.message ?? err);
+    return null;
   }
-
-  // Fallback: universal tips only
-  const rows = await prisma.$queryRaw<{ id: string; title: string; body: string; category: string }[]>(
-    buildQuery(null, excludeIds)
-  );
-  return rows.length > 0 ? rows[0] : null;
 }
 
 function buildQuery(curlPattern: string | null, excludeIds: string[]): Prisma.Sql {
