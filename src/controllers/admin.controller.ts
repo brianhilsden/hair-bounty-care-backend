@@ -404,6 +404,15 @@ export class AdminController {
     } catch (e) { next(e); }
   }
 
+  async dispatchTipsNow(req: Request, res: Response, next: NextFunction) {
+    try {
+      // Fire and forget — runs async, responds immediately
+      const { runDailyTipsJob } = await import('../jobs/dailyTips.job');
+      runDailyTipsJob().catch((err) => console.error('[Admin] dispatchTipsNow error:', err));
+      return ApiResponse.success(res, { started: true }, 'Tip dispatch started — check server logs');
+    } catch (e) { next(e); }
+  }
+
   async getTips(req: Request, res: Response, next: NextFunction) {
     try {
       const page = parseInt(req.query.page as string) || 1;

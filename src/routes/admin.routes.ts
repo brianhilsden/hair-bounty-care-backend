@@ -148,6 +148,7 @@ router.post('/push/user', adminMutationRateLimiter, ctrl.sendPushToUser.bind(ctr
 
 // ─── Hair Tips ───────────────────────────────────────────────────────────────
 router.post('/tips/generate', adminMutationRateLimiter, ctrl.generateTips.bind(ctrl));
+router.post('/tips/dispatch', adminMutationRateLimiter, ctrl.dispatchTipsNow.bind(ctrl));
 router.get('/tips', ctrl.getTips.bind(ctrl));
 router.patch('/tips/:id/toggle', adminMutationRateLimiter, ctrl.toggleTip.bind(ctrl));
 router.delete('/tips/:id', adminMutationRateLimiter, ctrl.deleteTip.bind(ctrl));
